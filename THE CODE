@@ -1,0 +1,79 @@
+import gradio as gr
+import openai
+import pdfplumber
+from docx import Document
+from pptx import Presentation
+
+# Set up OpenAI API key
+openai.api_key = "APIKEY"
+
+# Function to extract text from PDF
+def extract_pdf_text(pdf_path):
+    with pdfplumber.open(pdf_path) as pdf:
+        extracted_text = ""
+        for page in pdf.pages:
+            extracted_text += page.extract_text()
+    return extracted_text
+
+# Function to extract text from DOCX
+def extract_docx_text(docx_path):
+    doc = Document(docx_path)
+    extracted_text = ""
+    for para in doc.paragraphs:
+        extracted_text += para.text + "\n"
+    return extracted_text
+
+# Function to extract text from PPTX
+def extract_pptx_text(pptx_path):
+    prs = Presentation(pptx_path)
+    extracted_text = ""
+    for slide in prs.slides:
+        for shape in slide.shapes:
+            if hasattr(shape, "text"):
+                extracted_text += shape.text + "\n"
+    return extracted_text
+
+# ... (previous code)
+
+# Function to process document and generate AI response
+def process_document_and_chat(doc_file, user_question):
+    # Extract the uploaded file path
+    doc_path = doc_file.name
+
+    # Extract text based on document type
+    if doc_path.lower().endswith(".pdf"):
+        extracted_text = extract_pdf_text(doc_path)
+    elif doc_path.lower().endswith(".docx"):
+        extracted_text = extract_docx_text(doc_path)
+    elif doc_path.lower().endswith(".pptx"):
+        extracted_text = extract_pptx_text(doc_path)
+    else:
+        return "Unsupported file format."
+
+    # Create conversation history with extracted text
+    chat_history = [
+        {"role": "system", "content": "You are a knowledgeable AI Assistant."},
+        {"role": "user", "content": f"Document Text:\n{extracted_text}"}
+    ]
+
+    # Add user's question to the conversation history
+    chat_history.append({"role": "user", "content": user_question})
+
+    # Generate AI response using GPT-3.5 Turbo
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=chat_history
+    )
+
+    ai_response = response.choices[0].message['content']
+    return ai_response
+
+# Create the Gradio interface
+iface = gr.Interface(
+    fn=process_document_and_chat,
+    inputs=[gr.inputs.File(label="Upload Document"), gr.inputs.Textbox(label="Ask a Question")],
+    outputs=gr.outputs.Textbox(label="AI Response")
+)
+
+if __name__ == "__main__":
+    iface.launch()
